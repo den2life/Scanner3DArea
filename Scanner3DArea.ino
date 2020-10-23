@@ -2,7 +2,7 @@
 #include <OneWire.h>
 #include <Wire.h>
 #include <EEPROM.h>
-#include "lidarlitev3.h"
+#include "lib/lidarlitev3.h"
 
 LidarLiteV3 Lidarlite;
 
