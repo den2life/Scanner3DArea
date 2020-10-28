@@ -28,10 +28,7 @@
 class LidarLiteV3
 {
     public: 
-    LidarLiteV3 ()
-    {
-        Wire.begin();
-    }
+    LidarLiteV3();
     
     uint8_t getSystemStatusReg(void)
     {
@@ -67,7 +64,7 @@ class LidarLiteV3
         return this->readRegister8(LIDARLITEV3_ADDR_REG_STATUS) & 0x01;
     }
     uint16_t getDistance(void);
-
+    uint16_t getDistanceWithAvarage(uint8_t avarage);
     private:
     void writeRegister8(uint8_t reg, uint8_t value);
     uint8_t readRegister8(uint8_t reg);

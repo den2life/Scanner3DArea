@@ -2,6 +2,11 @@
 
 
 
+LidarLiteV3::LidarLiteV3 (void)
+{
+    Wire.begin();
+}
+
 /**
  * Функция чтения 8битов
  * @param reg Регистр Lidar Lite v3
