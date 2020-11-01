@@ -76,3 +76,4 @@ uint16_t LidarLiteV3::getDistanceWithAvarage(uint8_t avarage)
     
     return bufLidar / avarage;
 }
+
