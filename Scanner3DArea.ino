@@ -211,7 +211,7 @@ uint8_t MainProcess(void)
 				arroundX.brake();
 				arroundX.setRunMode(FOLLOW_POS); // режим поддержания скорости
 				arroundY.setTarget(-arroundY.getCurrent(), RELATIVE);
-				arroundY.setTarget(-arroundY.getCurrent(), RELATIVE);
+				arroundX.setTarget(-arroundX.getCurrent(), RELATIVE);
 				return 1;
 			}
 			arroundY.setTargetDeg(stepCountY, RELATIVE);	//Ось А на шаг больше
