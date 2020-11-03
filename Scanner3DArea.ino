@@ -208,8 +208,10 @@ uint8_t MainProcess(void)
 			stepCountY += 1;
 			if (arroundY.getTargetDeg() >= 90)	//Если ось А просканирует 90гр, то нужно парковаться и заканчивать работу
 			{
-				arroundY.setTargetDeg(-arroundY.getCurrentDeg(), RELATIVE);
-				arroundX.setTargetDeg(-arroundX.getCurrentDeg(), RELATIVE);
+				arroundX.brake();
+				arroundX.setRunMode(FOLLOW_POS); // режим поддержания скорости
+				arroundY.setTarget(-arroundY.getCurrent(), RELATIVE);
+				arroundX.setTarget(-arroundX.getCurrent(), RELATIVE);
 				return 1;
 			}
 			arroundY.setTargetDeg(stepCountY, RELATIVE);	//Ось А на шаг больше
