@@ -1,5 +1,5 @@
 #include <Arduino.h>
-#include "OneWire.h"
+#include <OneWire.h>
 #include <Wire.h>
 #include <EEPROM.h>
 #include "lidarlitev3.h"
@@ -148,13 +148,14 @@ void UART_TransmitPacket()
 	uint8_t arr[7];
 
 	bufferData = arroundY.getCurrent();
+	bufferData = bufferData - ((bufferData / 4800) * 4800);
 	arr[0] = (bufferData & 0xFF00) >> 8;
 	arr[1] = (bufferData & 0xFF);
 	bufferData = arroundX.getCurrent();
 	bufferData = bufferData - ((bufferData / 4800) * 4800);
 	arr[2] = (bufferData & 0xFF00) >> 8;
 	arr[3] = (bufferData & 0xFF);
-	bufferData = Lidarlite.getDistance();
+	bufferData = 20;//Lidarlite.getDistance();
 	arr[4] = (bufferData & 0xFF00) >> 8;
 	arr[5] = (bufferData & 0xFF);
 	arr[6] = OneWire::crc8(arr, 6);
@@ -205,11 +206,13 @@ uint8_t MainProcess(void)
 			// Serial.println(arroundX.getCurrentDeg());
 			// Serial.println(arroundX.getCurrent());
 			stepCountY += 1;
-			if (stepCountY == 270)	//Если ось А просканирует 270гр, то нужно парковаться и заканчивать работу
+			if (arroundY.getTargetDeg() >= 90)	//Если ось А просканирует 90гр, то нужно парковаться и заканчивать работу
 			{
+				arroundY.setTargetDeg(-arroundY.getCurrentDeg(), RELATIVE);
+				arroundX.setTargetDeg(-arroundX.getCurrentDeg(), RELATIVE);
 				return 1;
 			}
-			arroundY.setTarget(stepCountY, RELATIVE);	//Ось А на шаг больше
+			arroundY.setTargetDeg(stepCountY, RELATIVE);	//Ось А на шаг больше
 			
 			
 			tmr2 = true;
@@ -277,7 +280,7 @@ void setup()
 	arroundY.setRunMode(FOLLOW_POS);
 	arroundY.setSpeedDeg(50);        // в градусах/сек
 	arroundY.setCurrentDeg(0);
-	// arroundY.setTargetDeg(90, RELATIVE);	//Ось А от начала идет на 45гр
+	arroundY.setTargetDeg(30, RELATIVE);	//Ось А от начала идет на 45гр
 	Timer2.setPeriod(4000);
 	Timer2.enableISR();
 }
