@@ -7,107 +7,9 @@
 #include "GyverStepper.h"
 #include "GyverTimers.h"
 
-/**
- * Написал два метода, уголовой и шаговый, они по своей сути одиноковы, просто градусами удобнее работать до 0.5гр, дальшще там погрешности могут быть поэтому
- * менее точный метод и шаговый Шаговый более точный, так как программа пытается использовать каждый шаг для сканирования объекта.
- * */
-
-
-#define SCANNER3D_DEGREE_METHODE	0		//1-Уголовой метод 0-Шаговый метод
-
-#if SCANNER3D_DEGREE_METHODE > 0	//Уголовой метод сканирования (менее точный)
-
-GStepper <STEPPER4WIRE> arroundX(4800, 11, 10, 9, 8);	//Двигатель 28byj-48-5v высчислено на глаз 4800 шагов/оборот. Видимо шестерня "редуцирует" и вносит такие показания на кол-во шагов
-GStepper <STEPPER4WIRE> arroundY(4800, 7, 6, 5, 4);
-      
-
-int stepCountX = 0;         // number of steps the motor has taken
-int stepCountY = 0;         // number of steps the motor has taken
-int speedCount = 0;         // number of steps the motor has taken
-
-LidarLiteV3 Lidarlite;
-uint32_t tmr2;
-uint32_t tmr3;
-float getCurrentDeg;
-void setup()
-{
-	Serial.begin(9600);
-
-	arroundX.setRunMode(KEEP_SPEED); // режим поддержания скорости
-	arroundX.setSpeedDeg(24);        // в градусах/сек
-	arroundX.setCurrent(0);
-
-	arroundY.setRunMode(FOLLOW_POS); 
-	arroundY.setSpeedDeg(50);        // в градусах/сек
-	arroundY.setCurrent(0);
-	//arroundX.setTargetDeg(360, RELATIVE);
-
-	Timer2.setPeriod(1000);
-	Timer2.enableISR();
-}
-void loop()
-{
-	// getCurrentDeg = arroundX.getCurrentDeg();
-	if ((int)arroundX.getCurrentDeg() % 360 == 0)	//Постоянно крутим Ось Б если пройдет круг, то поднимаем ось А
-	{
-		if (!tmr2)
-		{
-			Serial.println(arroundX.getCurrentDeg());
-			arroundY.setTargetDeg(stepCountY);
-			stepCountY += 1;
-			if (stepCountY == 270)	//Если ось А просканирует 270гр, то нужно парковаться и заканчивать работу
-			{
-
-			}
-			tmr2 = 1;
-		}
-		
-		// stepCountX += 10;
-		// 
-		// arroundX.setTargetDeg(stepCountX, RELATIVE);
-	}
-	else
-	{
-		tmr2 = 0;
-	}
-	
-	if ((int)(modff(getCurrentDeg = arroundX.getCurrentDeg(), NULL) * 10) % 5 == 0)	//Замеряем дистанцию каждые 0.5градусов всего 720 точек
-	{
-		if (!tmr3)
-		{
-			Serial.print("Degree: ");
-			Serial.println(getCurrentDeg);
-			tmr3 = 1;
-		}
-		
-	}
-	else
-	{
-		tmr3 = 0;
-	}
-	
-    // if (millis() - tmr2 > 50)
-    // {
-		
-		
-	// 	tmr2 = millis();
-    // }
-	
-    // Serial.print("Distance: ");
-    // Serial.print(Lidarlite.getDistance());
-    // Serial.println("cm");
-}
-
-// обработчик
-ISR(TIMER2_A)
-{
-	arroundX.tick();
-	arroundY.tick();
-}
-#else		//Шаговый метод сканирования (более точный)
 
 GStepper< STEPPER4WIRE> arroundX(4800, 11, 10, 9, 8);
-GStepper <STEPPER4WIRE> arroundY(4800, 7, 6, 5, 4);
+GStepper <STEPPER4WIRE> arroundY(2100, 7, 6, 5, 4);
       
 uint16_t stepCountY = 0;         // number of steps the motor has taken
 
@@ -148,14 +50,13 @@ void UART_TransmitPacket()
 	uint8_t arr[7];
 
 	bufferData = arroundY.getCurrent();
-	bufferData = bufferData - ((bufferData / 4800) * 4800);
 	arr[0] = (bufferData & 0xFF00) >> 8;
 	arr[1] = (bufferData & 0xFF);
 	bufferData = arroundX.getCurrent();
 	bufferData = bufferData - ((bufferData / 4800) * 4800);
 	arr[2] = (bufferData & 0xFF00) >> 8;
 	arr[3] = (bufferData & 0xFF);
-	bufferData = 20;//Lidarlite.getDistance();
+	bufferData = Lidarlite.getDistance();
 	arr[4] = (bufferData & 0xFF00) >> 8;
 	arr[5] = (bufferData & 0xFF);
 	arr[6] = OneWire::crc8(arr, 6);
@@ -194,7 +95,8 @@ uint8_t UART_Receive(void)
 	}
 	return result;
 }
-
+bool axisYState = false;
+bool axisXState = false;
 uint8_t MainProcess(void)
 {
 	if (((int)arroundX.getCurrentDeg() % 360 == 0))	//Постоянно крутим Ось Б если пройдет круг, то поднимаем ось А
@@ -206,12 +108,12 @@ uint8_t MainProcess(void)
 			// Serial.println(arroundX.getCurrentDeg());
 			// Serial.println(arroundX.getCurrent());
 			stepCountY += 1;
-			if (arroundY.getTargetDeg() >= 90)	//Если ось А просканирует 90гр, то нужно парковаться и заканчивать работу
+			if (arroundY.getTargetDeg() >= 180)	//Если ось А просканирует 90гр, то нужно парковаться и заканчивать работу
 			{
-				arroundX.brake();
 				arroundX.setRunMode(FOLLOW_POS); // режим поддержания скорости
+				arroundX.setSpeedDeg(24);        // в градусах/сек
 				arroundY.setTarget(-arroundY.getCurrent(), RELATIVE);
-				arroundX.setTarget(-arroundX.getCurrent(), RELATIVE);
+				arroundX.setTarget(-(round(modff((float)((float)arroundX.getCurrent()/4800), NULL) * 4800)), RELATIVE);
 				return 1;
 			}
 			arroundY.setTargetDeg(stepCountY, RELATIVE);	//Ось А на шаг больше
@@ -276,42 +178,67 @@ void setup()
 {
 	Serial.begin(115200);
 
-	
-	
-
+	/* arroundX.setRunMode(FOLLOW_POS); // режим поддержания скорости
+	arroundX.setSpeedDeg(24);        // в градусах/сек
+	arroundX.setCurrentDeg(0); */
+	// arroundX.setTargetDeg(-1, RELATIVE);
 	arroundY.setRunMode(FOLLOW_POS);
-	arroundY.setSpeedDeg(50);        // в градусах/сек
+	arroundY.setSpeedDeg(24);        // в градусах/сек
 	arroundY.setCurrentDeg(0);
-	arroundY.setTargetDeg(30, RELATIVE);	//Ось А от начала идет на 45гр
+	// arroundY.setTargetDeg(1, RELATIVE);
+	// arroundY.setTargetDeg(20, RELATIVE);
 	Timer2.setPeriod(4000);
 	Timer2.enableISR();
 }
 void loop()
 {
+	/* if (axisYState == false)
+	{
+		static bool dir = true;
+    	dir = !dir;
+		arroundY.setTargetDeg(dir ? -360 : 360, RELATIVE);
+	} */
+	
+	/* if (!BufferSysTick3)
+	{
+		BufferSysTick3 = millis();
+	}
+	else if ((millis() - BufferSysTick3) > 1000)
+	{
+		Serial.println(arroundY.getCurrent());
+		BufferSysTick3 = 0;
+	} */
+
+	#if 1
 	switch (cmdStartScanFromPC)
 	{
 		case 0:
 		cmdStartScanFromPC = UART_Receive();
-		
+		if (cmdStartScanFromPC == 1)
+			arroundY.setTargetDeg(45, RELATIVE);	//Ось А от начала идет на 45гр
 		break;
 
 		case 1:
-		delay(2000);
-		arroundX.setRunMode(KEEP_SPEED); // режим поддержания скорости
-		arroundX.setSpeedDeg(24);        // в градусах/сек
-		arroundX.setCurrent(0);
-		cmdStartScanFromPC = 2;
+		delay(100);
+		if (axisYState == false)
+			cmdStartScanFromPC = 2;
 		break;
 
 		case 2:
+			arroundX.setRunMode(KEEP_SPEED); // режим поддержания скорости
+			arroundX.setSpeedDeg(24);        // в градусах/сек
+			arroundX.setCurrent(0);
+			cmdStartScanFromPC = 3;
+		break;
+
+		case 3:
 		// cmdStartScanFromPC = 0;
 		if (MainProcess()) cmdStartScanFromPC = 0;
 		break;
-
 		default:
 		break;
 	}
-	
+	#endif
 
     
 }
@@ -319,10 +246,7 @@ void loop()
 // обработчик
 ISR(TIMER2_A)
 {
-	arroundX.tick();
-	arroundY.tick();
-
-	
+	axisXState = arroundX.tick();
+	axisYState = arroundY.tick();
 }
-#endif
 
