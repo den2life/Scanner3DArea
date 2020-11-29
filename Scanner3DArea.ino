@@ -1,5 +1,7 @@
 #include <Arduino.h>
+
 #include <OneWire.h>
+
 #include <Wire.h>
 #include <EEPROM.h>
 #include "lidarlitev3.h"
@@ -8,7 +10,7 @@
 #include "GyverTimers.h"
 
 
-GStepper< STEPPER4WIRE> arroundX(4800, 11, 10, 9, 8);
+GStepper< STEPPER4WIRE> arroundX(3186, 11, 10, 9, 8);
 GStepper <STEPPER4WIRE> arroundY(2100, 7, 6, 5, 4);
       
 uint16_t stepCountY = 0;         // number of steps the motor has taken
@@ -44,36 +46,58 @@ void UART_Transmit16(uint16_t data)
 	UART_WriteByte((data & 0xFF00) >> 8);
 	UART_WriteByte((data & 0xFF));
 }
-
+void convertToFloat(float data, uint8_t* outdata)
+{
+	float tmp;
+	int16_t tmp2 = modff(data, &tmp) * 10000;
+	outdata[0] = (tmp2 & 0xFF00) >> 8;
+	outdata[1] = (tmp2 & 0xFF);
+	outdata[2] = ((int16_t)tmp & 0xFF00) >> 8;
+	outdata[3] = ((int16_t)tmp & 0xFF);
+}
+// #define _DEBUG_OUTPUT_ENABLE_
 void UART_TransmitPacket()
 {
-	uint8_t arr[7];
+	long distance;
+	float x_deg, y_deg, x, y, z;
+	float tmp2;
+	uint8_t arr[13];
 
-	bufferData = arroundY.getCurrent();
-	arr[0] = (bufferData & 0xFF00) >> 8;
-	arr[1] = (bufferData & 0xFF);
-	bufferData = arroundX.getCurrent();
-	bufferData = bufferData - ((bufferData / 4800) * 4800);
-	arr[2] = (bufferData & 0xFF00) >> 8;
-	arr[3] = (bufferData & 0xFF);
-	bufferData = Lidarlite.getDistance();
-	arr[4] = (bufferData & 0xFF00) >> 8;
-	arr[5] = (bufferData & 0xFF);
-	arr[6] = OneWire::crc8(arr, 6);
-	UART_WriteBurst(arr, 7);
+	#ifndef _DEBUG_OUTPUT_ENABLE_
+	distance = Lidarlite.getDistance();
+	#else
+	distance = 10;
+	#endif
+	x_deg = arroundX.getCurrentDeg();
+	// x_deg = ((float)(x_deg/360) - (uint16_t)(x_deg / 360)) * 360;
+	x_deg = modff(x_deg / 360, NULL) * 360;
+	y_deg = arroundY.getCurrentDeg();
+
+    x = distance*cos(radians(x_deg))*sin(radians(y_deg));
+    y = distance*sin(radians(x_deg))*sin(radians(y_deg));
+    z = distance*(cos(radians(y_deg)));
+	
+	convertToFloat(y, arr);
+	convertToFloat(x, arr + 4);
+	convertToFloat(z, arr + 8);
+	arr[12] = OneWire::crc8(arr, 12);
+	#ifdef _DEBUG_OUTPUT_ENABLE_
+	Serial.println(String(y) + ',' + String(x) + ','+ String(z) + ',' + String(x_deg) + ','+ String(y_deg) + ',' + String(distance));
+	#else
+	UART_WriteBurst(arr, 13);
+	#endif
 }
 
 uint8_t UART_Receive(void)
 {
  	int result = 0;
-
+	 
 	if (Serial.available())
 	{
 		flagRxTime = true;
 		
-		incomingBytes = Serial.read();
+		incomingBytes = Serial.read(); //0-255 
 		BufferSysTick3 = 0;
-		
 	}
 	if (flagRxTime)
 	{
@@ -107,17 +131,17 @@ uint8_t MainProcess(void)
 			// arroundX.brake();
 			// Serial.println(arroundX.getCurrentDeg());
 			// Serial.println(arroundX.getCurrent());
-			stepCountY += 1;
-			if (arroundY.getTargetDeg() >= 180)	//Если ось А просканирует 90гр, то нужно парковаться и заканчивать работу
+			//stepCountY += 1;
+			if (arroundY.getTargetDeg() >= 165)	//Если ось А просканирует 90гр, то нужно парковаться и заканчивать работу
 			{
-				arroundX.setRunMode(FOLLOW_POS); // режим поддержания скорости
+				arroundX.setRunMode(FOLLOW_POS); //
 				arroundX.setSpeedDeg(24);        // в градусах/сек
 				arroundY.setTarget(-arroundY.getCurrent(), RELATIVE);
 				arroundX.setTarget(-(round(modff((float)((float)arroundX.getCurrent()/4800), NULL) * 4800)), RELATIVE);
 				return 1;
 			}
-			arroundY.setTargetDeg(stepCountY, RELATIVE);	//Ось А на шаг больше
-			
+			arroundY.setTargetDeg(1, RELATIVE);	//Ось А на шаг больше
+			//arroundY.setTargetDeg(1);
 			
 			tmr2 = true;
 			// arroundX.setRunMode(KEEP_SPEED); // режим поддержания скорости
@@ -131,7 +155,7 @@ uint8_t MainProcess(void)
 		tmr2 = false;
 	}
 	#if 1
-	if (arroundX.getCurrent() - tmr4 >= 2)	//Здесь будем пытатся сканировать дистанцию каждый шаг
+	if (arroundX.getCurrent() - tmr4 >= 4)	//Здесь будем пытатся сканировать дистанцию каждый шаг
 	{
 		tmr4 = arroundX.getCurrent();
 		// Serial.println(CountForRawData);
@@ -178,9 +202,9 @@ void setup()
 {
 	Serial.begin(115200);
 
-	/* arroundX.setRunMode(FOLLOW_POS); // режим поддержания скорости
+/*	arroundX.setRunMode(FOLLOW_POS); // режим поддержания скорости
 	arroundX.setSpeedDeg(24);        // в градусах/сек
-	arroundX.setCurrentDeg(0); */
+	arroundX.setCurrentDeg(0);*/
 	// arroundX.setTargetDeg(-1, RELATIVE);
 	arroundY.setRunMode(FOLLOW_POS);
 	arroundY.setSpeedDeg(24);        // в градусах/сек
@@ -214,6 +238,9 @@ void loop()
 	{
 		case 0:
 		cmdStartScanFromPC = UART_Receive();
+		#ifdef _DEBUG_OUTPUT_ENABLE_
+		cmdStartScanFromPC = 1;
+		#endif
 		if (cmdStartScanFromPC == 1)
 			arroundY.setTargetDeg(45, RELATIVE);	//Ось А от начала идет на 45гр
 		break;
@@ -232,15 +259,19 @@ void loop()
 		break;
 
 		case 3:
-		// cmdStartScanFromPC = 0;
+		//arroundX.setTargetDeg(1, RELATIVE);  //Ось А на шаг больше
 		if (MainProcess()) cmdStartScanFromPC = 0;
 		break;
+
+		case 4:
+		delay(5000);
+		
+		break;
+
 		default:
 		break;
 	}
 	#endif
-
-    
 }
 
 // обработчик
@@ -249,4 +280,3 @@ ISR(TIMER2_A)
 	axisXState = arroundX.tick();
 	axisYState = arroundY.tick();
 }
-
